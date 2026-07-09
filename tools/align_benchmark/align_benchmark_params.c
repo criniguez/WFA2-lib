@@ -428,7 +428,6 @@ void parse_arguments(
       const int p2 = atoi(sentinel);
       parameters.wfa_heuristic_p2 = p2;
       sentinel = strtok(NULL,",");
-      CHECK_SENTINEL(sentinel, "Invalid --wfa-heuristic-parameters\n");
       if (sentinel != NULL) {
         const int p3 = atoi(sentinel);
         parameters.wfa_heuristic_p3 = p3;

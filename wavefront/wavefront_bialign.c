@@ -78,10 +78,34 @@ void wavefront_bialign_debug(
   fprintf(stderr,")\n");
 }
 /*
+ * Static Band Heuristic Set Bands 
+ */
+void wavefront_bialign_set_subsidiary_band(
+    wavefront_aligner_t* const wf_aligner,
+    wavefront_aligner_t* const wf_forward,
+    wavefront_aligner_t* const wf_reverse) {
+  const wf_heuristic_strategy strategy = wf_aligner->heuristic.strategy;
+  if ((strategy & wf_heuristic_banded_static) == 0 &&
+      (strategy & wf_heuristic_banded_adaptive) == 0) {
+    return;
+  }
+  const int global_min_k = wf_aligner->heuristic.min_k;
+  const int global_max_k = wf_aligner->heuristic.max_k;
+  //Update bands for forward alignemnt
+  const wavefront_sequences_t* const sequences = &wf_forward->sequences;
+  const int sub_diagonal_shift = sequences->text_begin - sequences->pattern_begin;
+  wf_forward->heuristic.min_k = global_min_k - sub_diagonal_shift;
+  wf_forward->heuristic.max_k = global_max_k - sub_diagonal_shift;
+  //Update bands for reverse alignemnt 
+  const int diagonal_shift = sequences->text_length - sequences->pattern_length;
+  wf_reverse->heuristic.min_k = diagonal_shift - wf_forward->heuristic.max_k;
+  wf_reverse->heuristic.max_k = diagonal_shift - wf_forward->heuristic.min_k;
+}
+/*
  * Init
  */
 void wavefront_bialign_init(
-    wavefront_bialigner_t* const bialigner,
+    wavefront_aligner_t* const wf_aligner,
     const distance_metric_t distance_metric,
     alignment_form_t* const form,
     const affine2p_matrix_type component_begin,
@@ -89,8 +113,10 @@ void wavefront_bialign_init(
     const int align_level,
     const int verbose) {
   // Parameters
+  wavefront_bialigner_t* const bialigner = wf_aligner->bialigner;
   wavefront_aligner_t* const wf_forward = bialigner->wf_forward;
   wavefront_aligner_t* const wf_reverse = bialigner->wf_reverse;
+  wavefront_bialign_set_subsidiary_band(wf_aligner,wf_forward,wf_reverse);
   // Configure WF-compute function
   switch (distance_metric) {
     case indel:
@@ -973,7 +999,7 @@ int wavefront_bialign_overlap_gopen_adjust(
   }
 }
 int wavefront_bialign_find_breakpoint(
-    wavefront_bialigner_t* const bialigner,
+    wavefront_aligner_t* const wf_aligner,
     const distance_metric_t distance_metric,
     alignment_form_t* const form,
     const affine2p_matrix_type component_begin,
@@ -981,13 +1007,14 @@ int wavefront_bialign_find_breakpoint(
     wf_bialign_breakpoint_t* const breakpoint,
     const int align_level) {
   // Parameters
+  wavefront_bialigner_t* const bialigner = wf_aligner->bialigner;
   wavefront_aligner_t* const wf_forward = bialigner->wf_forward;
   wavefront_aligner_t* const wf_reverse = bialigner->wf_reverse;
   alignment_system_t* const system = &wf_forward->system;
   const bool plot_enabled = (wf_forward->plot != NULL);
   const int verbose = system->verbose;
   // Init bialignment
-  wavefront_bialign_init(bialigner,distance_metric,form,component_begin,component_end,align_level,verbose);
+  wavefront_bialign_init(wf_aligner,distance_metric,form,component_begin,component_end,align_level,verbose);
   // Sequences
   wavefront_sequences_t* const sequences = &wf_forward->sequences;
   const int text_length = sequences->text_length;
@@ -1172,7 +1199,7 @@ int wavefront_bialign_alignment(
   // Find breakpoint in the alignment
   wf_bialign_breakpoint_t breakpoint;
   int align_status = wavefront_bialign_find_breakpoint(
-      wf_aligner->bialigner,wf_aligner->penalties.distance_metric,
+      wf_aligner,wf_aligner->penalties.distance_metric,
       form,component_begin,component_end,&breakpoint,align_level);
   // DEBUG
   if (wf_aligner->system.verbose >= 2) {
@@ -1235,7 +1262,7 @@ int wavefront_bialign_compute_score(
   cigar_clear(wf_aligner->cigar);
   // Find breakpoint in the alignment
   wf_bialign_breakpoint_t breakpoint;
-  const int align_status = wavefront_bialign_find_breakpoint(wf_aligner->bialigner,
+  const int align_status = wavefront_bialign_find_breakpoint(wf_aligner,
       wf_aligner->penalties.distance_metric,&wf_aligner->alignment_form,
       affine_matrix_M,affine_matrix_M,&breakpoint,0);
   // DEBUG
