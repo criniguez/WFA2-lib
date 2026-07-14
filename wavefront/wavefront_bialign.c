@@ -193,6 +193,17 @@ int wavefront_bialign_base(
   const int verbose = wf_base->system.verbose;
   // Configure
   wf_base->alignment_form = *form;
+  wf_base->heuristic = wf_aligner->heuristic;
+  // Inherit heuristic band from master aligner
+  if ((wf_aligner->heuristic.strategy & wf_heuristic_banded_static)   != 0 ||
+      (wf_aligner->heuristic.strategy & wf_heuristic_banded_adaptive) != 0) {
+    const int global_min_k = wf_aligner->heuristic.min_k;
+    const int global_max_k = wf_aligner->heuristic.max_k;
+    const wavefront_sequences_t* const sequences = &wf_base->sequences;
+    const int diagonal_shift = sequences->text_begin - sequences->pattern_begin;
+    wf_base->heuristic.min_k = global_min_k - diagonal_shift;
+    wf_base->heuristic.max_k = global_max_k - diagonal_shift;
+  }
   wavefront_unialign_init(wf_base,component_begin,component_end);
   // DEBUG
   if (verbose >= 2) wavefront_debug_begin(wf_base);
